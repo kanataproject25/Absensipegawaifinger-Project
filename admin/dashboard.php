@@ -127,11 +127,11 @@ try {
     </div>
     <!-- Today's Attendance Table -->
     <div class="col-lg-5">
-        <div class="panel-card shadow-sm p-4 d-flex flex-column" style="min-height: 380px;">
-            <h5 class="fw-bold mb-4">Presensi Hari Ini</h5>
-            <div class="table-responsive flex-grow-1">
-                <table class="table table-hover align-middle">
-                    <thead class="table-light">
+        <div class="panel-card shadow-sm p-4 d-flex flex-column" style="height: 412px;">
+            <h5 class="fw-bold mb-3">Presensi Hari Ini</h5>
+            <div class="table-responsive flex-grow-1" style="overflow-y: auto; max-height: 290px; border: 1px solid #f0f2f5; border-radius: 8px;">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="table-light sticky-top">
                         <tr>
                             <th>Nama Pegawai</th>
                             <th>Jam Masuk</th>

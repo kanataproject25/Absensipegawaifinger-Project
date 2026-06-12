@@ -115,6 +115,50 @@ $current_page = basename($_SERVER['PHP_SELF']);
         .badge-alpha { background-color: rgba(231, 76, 60, 0.15); color: #C0392B; }
         .badge-sakit { background-color: rgba(52, 152, 219, 0.15); color: #2980B9; }
         .badge-izin { background-color: rgba(155, 89, 182, 0.15); color: #8E44AD; }
+
+        /* ── Scrollbar ── */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: rgba(30, 58, 95, 0.15); border-radius: 99px; }
+
+        /* ── PANEL CARD (generic white card) ── */
+        .panel-card {
+            background: #fff;
+            border-radius: 16px;
+            box-shadow: 0 4px 24px rgba(30, 58, 95, 0.04);
+            border: none;
+            transition: all 0.25s cubic-bezier(.4,0,.2,1);
+        }
+        .panel-card:hover { box-shadow: 0 8px 32px rgba(30, 58, 95, 0.08); }
+
+        /* ── METRIC CARDS ── */
+        .metric-card {
+            background: #fff;
+            border-radius: 16px;
+            padding: 1.5rem 1.6rem;
+            box-shadow: 0 4px 24px rgba(30, 58, 95, 0.04);
+            position: relative;
+            overflow: hidden;
+            transition: all 0.25s cubic-bezier(.4,0,.2,1);
+            border-left: 4px solid transparent;
+        }
+        .metric-card:hover { box-shadow: 0 8px 32px rgba(30, 58, 95, 0.08); transform: translateY(-2px); }
+        .metric-card.total    { border-left-color: var(--primary-color); }
+        .metric-card.hadir    { border-left-color: var(--color-hadir); }
+        .metric-card.terlambat{ border-left-color: var(--color-terlambat); }
+        .metric-card.alpha    { border-left-color: var(--color-alpha); }
+
+        .metric-card .metric-icon {
+            position: absolute; right: 1.2rem; top: 50%;
+            transform: translateY(-50%);
+            font-size: 2.8rem;
+            opacity: .1;
+            transition: all 0.25s ease;
+        }
+        .metric-card:hover .metric-icon {
+            transform: translateY(-50%) scale(1.1);
+            opacity: 0.15;
+        }
     </style>
 </head>
 <body>

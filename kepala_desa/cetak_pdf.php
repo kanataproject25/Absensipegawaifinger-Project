@@ -3,6 +3,8 @@ session_start();
 require_once __DIR__ . '/../config/db.php';
 require_once __DIR__ . '/../vendor/autoload.php';
 
+use Fpdf\Fpdf as FPDF;
+
 // Authentication Check
 if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'kepala_desa') {
     die("Akses ditolak.");
@@ -106,31 +108,87 @@ $pdf->SetFont('Arial', '', 10);
 $pdf->Cell(0, 6, $periode_text, 0, 1, 'C');
 $pdf->Ln(5);
 
-// Table Header
-$pdf->SetFont('Arial', 'B', 9);
-$pdf->SetFillColor(230, 235, 245);
-$pdf->Cell(10, 8, 'No', 1, 0, 'C', true);
-$pdf->Cell(50, 8, 'Nama Pegawai', 1, 0, 'L', true);
-$pdf->Cell(25, 8, 'Tanggal', 1, 0, 'C', true);
-$pdf->Cell(25, 8, 'Jam Masuk', 1, 0, 'C', true);
-$pdf->Cell(25, 8, 'Jam Pulang', 1, 0, 'C', true);
-$pdf->Cell(22, 8, 'Status', 1, 0, 'C', true);
-$pdf->Cell(33, 8, 'Keterangan', 1, 1, 'L', true);
+if ($type === 'harian') {
+    // Table Header for Daily
+    $pdf->SetFont('Arial', 'B', 9);
+    $pdf->SetFillColor(230, 235, 245);
+    $pdf->Cell(10, 8, 'No', 1, 0, 'C', true);
+    $pdf->Cell(50, 8, 'Nama Pegawai', 1, 0, 'L', true);
+    $pdf->Cell(25, 8, 'Tanggal', 1, 0, 'C', true);
+    $pdf->Cell(25, 8, 'Jam Masuk', 1, 0, 'C', true);
+    $pdf->Cell(25, 8, 'Jam Pulang', 1, 0, 'C', true);
+    $pdf->Cell(22, 8, 'Status', 1, 0, 'C', true);
+    $pdf->Cell(33, 8, 'Keterangan', 1, 1, 'L', true);
 
-// Table Data
-$pdf->SetFont('Arial', '', 9);
-$no = 1;
-if (empty($presensi_list)) {
-    $pdf->Cell(190, 8, 'Tidak ada data presensi.', 1, 1, 'C');
+    // Table Data
+    $pdf->SetFont('Arial', '', 9);
+    $no = 1;
+    if (empty($presensi_list)) {
+        $pdf->Cell(190, 8, 'Tidak ada data presensi.', 1, 1, 'C');
+    } else {
+        foreach ($presensi_list as $p) {
+            $pdf->Cell(10, 8, $no++, 1, 0, 'C');
+            $pdf->Cell(50, 8, substr($p['nama_lengkap'], 0, 25), 1, 0, 'L');
+            $pdf->Cell(25, 8, date('d-m-Y', strtotime($p['tanggal'])), 1, 0, 'C');
+            $pdf->Cell(25, 8, $p['jam_masuk'] ? date('H:i', strtotime($p['jam_masuk'])) : '-', 1, 0, 'C');
+            $pdf->Cell(25, 8, $p['jam_keluar'] ? date('H:i', strtotime($p['jam_keluar'])) : '-', 1, 0, 'C');
+            $pdf->Cell(22, 8, ucfirst($p['status']), 1, 0, 'C');
+            $pdf->Cell(33, 8, $p['keterangan'] ? substr($p['keterangan'], 0, 18) : '-', 1, 1, 'L');
+        }
+    }
 } else {
+    // Group monthly/yearly records by employee
+    $employees = [];
     foreach ($presensi_list as $p) {
-        $pdf->Cell(10, 8, $no++, 1, 0, 'C');
-        $pdf->Cell(50, 8, substr($p['nama_lengkap'], 0, 25), 1, 0, 'L');
-        $pdf->Cell(25, 8, date('d-m-Y', strtotime($p['tanggal'])), 1, 0, 'C');
-        $pdf->Cell(25, 8, $p['jam_masuk'] ? date('H:i', strtotime($p['jam_masuk'])) : '-', 1, 0, 'C');
-        $pdf->Cell(25, 8, $p['jam_keluar'] ? date('H:i', strtotime($p['jam_keluar'])) : '-', 1, 0, 'C');
-        $pdf->Cell(22, 8, ucfirst($p['status']), 1, 0, 'C');
-        $pdf->Cell(33, 8, $p['keterangan'] ? substr($p['keterangan'], 0, 18) : '-', 1, 1, 'L');
+        $uid = $p['nama_lengkap']; // group by name or NIP
+        if (!isset($employees[$uid])) {
+            $employees[$uid] = [
+                'nama_lengkap' => $p['nama_lengkap'],
+                'nama_jabatan' => $p['nama_jabatan'] ?? 'Staf',
+                'hadir'        => 0,
+                'terlambat'    => 0,
+                'alpha'        => 0,
+                'sakit'        => 0,
+                'izin'         => 0
+            ];
+        }
+        switch ($p['status']) {
+            case 'hadir':     $employees[$uid]['hadir']++;     break;
+            case 'terlambat': $employees[$uid]['terlambat']++; break;
+            case 'alpha':     $employees[$uid]['alpha']++;     break;
+            case 'sakit':     $employees[$uid]['sakit']++;     break;
+            case 'izin':      $employees[$uid]['izin']++;      break;
+        }
+    }
+
+    // Table Header for Summary
+    $pdf->SetFont('Arial', 'B', 9);
+    $pdf->SetFillColor(230, 235, 245);
+    $pdf->Cell(10, 8, 'No', 1, 0, 'C', true);
+    $pdf->Cell(50, 8, 'Nama Pegawai', 1, 0, 'L', true);
+    $pdf->Cell(45, 8, 'Jabatan', 1, 0, 'L', true);
+    $pdf->Cell(17, 8, 'Hadir', 1, 0, 'C', true);
+    $pdf->Cell(17, 8, 'Tlambat', 1, 0, 'C', true);
+    $pdf->Cell(17, 8, 'Alpha', 1, 0, 'C', true);
+    $pdf->Cell(17, 8, 'Sakit', 1, 0, 'C', true);
+    $pdf->Cell(17, 8, 'Izin', 1, 1, 'C', true);
+
+    // Table Data
+    $pdf->SetFont('Arial', '', 9);
+    $no = 1;
+    if (empty($employees)) {
+        $pdf->Cell(190, 8, 'Tidak ada data presensi.', 1, 1, 'C');
+    } else {
+        foreach ($employees as $emp) {
+            $pdf->Cell(10, 8, $no++, 1, 0, 'C');
+            $pdf->Cell(50, 8, substr($emp['nama_lengkap'], 0, 25), 1, 0, 'L');
+            $pdf->Cell(45, 8, substr($emp['nama_jabatan'], 0, 22), 1, 0, 'L');
+            $pdf->Cell(17, 8, $emp['hadir'], 1, 0, 'C');
+            $pdf->Cell(17, 8, $emp['terlambat'], 1, 0, 'C');
+            $pdf->Cell(17, 8, $emp['alpha'], 1, 0, 'C');
+            $pdf->Cell(17, 8, $emp['sakit'], 1, 0, 'C');
+            $pdf->Cell(17, 8, $emp['izin'], 1, 1, 'C');
+        }
     }
 }
 $pdf->Ln(15);

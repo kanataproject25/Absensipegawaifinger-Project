@@ -3,155 +3,222 @@ session_start();
 require_once __DIR__ . '/../config/db.php';
 require_once __DIR__ . '/../vendor/autoload.php';
 
+use Fpdf\Fpdf as FPDF;
+
 // Authentication Check
-if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'admin') {
+if (!isset($_SESSION['user_id']) || !in_array($_SESSION['role'], ['admin', 'kepala_desa'])) {
     die("Akses ditolak.");
 }
 
-$type = $_GET['type'] ?? 'harian';
-$date = $_GET['date'] ?? date('Y-m-d');
-$month = $_GET['month'] ?? date('m');
-$year = $_GET['year'] ?? date('Y');
+$filter_month   = $_GET['month']   ?? date('m');
+$filter_year    = $_GET['year']    ?? date('Y');
+$filter_user_id = $_GET['user_id'] ?? '';
 
-$presensi_list = [];
-$periode_text = '';
+$months = [
+    '01' => 'Januari', '02' => 'Februari', '03' => 'Maret',    '04' => 'April',
+    '05' => 'Mei',     '06' => 'Juni',     '07' => 'Juli',     '08' => 'Agustus',
+    '09' => 'September','10' => 'Oktober', '11' => 'November', '12' => 'Desember'
+];
 
-// Load data based on filters
-if ($type === 'harian') {
-    $query = "SELECT p.*, u.nama_lengkap, u.nip, j.nama_jabatan 
-              FROM presensi p 
-              JOIN users u ON p.user_id = u.id 
-              LEFT JOIN jabatan j ON u.jabatan_id = j.id
-              WHERE p.tanggal = :date 
-              ORDER BY u.nama_lengkap ASC";
-    $stmt = $pdo->prepare($query);
-    $stmt->execute([':date' => $date]);
-    $presensi_list = $stmt->fetchAll();
-    $periode_text = 'Hari/Tanggal: ' . date('d-m-Y', strtotime($date));
-} elseif ($type === 'bulanan') {
-    $months = [
-        '01' => 'Januari', '02' => 'Februari', '03' => 'Maret', '04' => 'April',
-        '05' => 'Mei', '06' => 'Juni', '07' => 'Juli', '08' => 'Agustus',
-        '09' => 'September', '10' => 'Oktober', '11' => 'November', '12' => 'Desember'
-    ];
-    $query = "SELECT p.*, u.nama_lengkap, u.nip, j.nama_jabatan 
-              FROM presensi p 
-              JOIN users u ON p.user_id = u.id 
-              LEFT JOIN jabatan j ON u.jabatan_id = j.id
-              WHERE MONTH(p.tanggal) = :month AND YEAR(p.tanggal) = :year 
-              ORDER BY p.tanggal ASC, u.nama_lengkap ASC";
-    $stmt = $pdo->prepare($query);
-    $stmt->execute([':month' => $month, ':year' => $year]);
-    $presensi_list = $stmt->fetchAll();
-    $periode_text = 'Bulan: ' . $months[$month] . ' ' . $year;
-} else {
-    $query = "SELECT p.*, u.nama_lengkap, u.nip, j.nama_jabatan 
-              FROM presensi p 
-              JOIN users u ON p.user_id = u.id 
-              LEFT JOIN jabatan j ON u.jabatan_id = j.id
-              WHERE YEAR(p.tanggal) = :year 
-              ORDER BY p.tanggal ASC, u.nama_lengkap ASC";
-    $stmt = $pdo->prepare($query);
-    $stmt->execute([':year' => $year]);
-    $presensi_list = $stmt->fetchAll();
-    $periode_text = 'Tahun: ' . $year;
+$query = "SELECT p.*, u.nama_lengkap, u.nip, u.user_id, j.nama_jabatan 
+          FROM presensi p 
+          JOIN users u ON p.user_id = u.id 
+          LEFT JOIN jabatan j ON u.jabatan_id = j.id
+          WHERE MONTH(p.tanggal) = :month AND YEAR(p.tanggal) = :year";
+
+$params = [':month' => $filter_month, ':year' => $filter_year];
+
+if (!empty($filter_user_id)) {
+    $query .= " AND p.user_id = :user_id";
+    $params[':user_id'] = $filter_user_id;
+}
+$query .= " ORDER BY p.tanggal ASC, u.nama_lengkap ASC";
+
+$stmt = $pdo->prepare($query);
+$stmt->execute($params);
+$presensi_list = $stmt->fetchAll();
+
+// Summary Rekap
+$rekap_hadir     = 0;
+$rekap_terlambat = 0;
+$rekap_alpha     = 0;
+$rekap_sakit     = 0;
+$rekap_izin      = 0;
+$total_late_min  = 0;
+$total_early_min = 0;
+
+foreach ($presensi_list as $p) {
+    switch ($p['status']) {
+        case 'hadir':     $rekap_hadir++;     break;
+        case 'terlambat': $rekap_terlambat++; break;
+        case 'alpha':     $rekap_alpha++;     break;
+        case 'sakit':     $rekap_sakit++;     break;
+        case 'izin':      $rekap_izin++;      break;
+    }
+    $total_late_min  += (int)($p['late_minute']  ?? 0);
+    $total_early_min += (int)($p['early_minute'] ?? 0);
 }
 
-// Fetch Kepala Desa details for signing block
+// Kepala Desa for signing block
 $stmt_kades = $pdo->query("SELECT nama_lengkap, nip FROM users WHERE role = 'kepala_desa' LIMIT 1");
-$kades = $stmt_kades->fetch();
+$kades      = $stmt_kades->fetch();
 $nama_kades = $kades ? $kades['nama_lengkap'] : 'H. Ahmad Syarifuddin, S.E.';
-$nip_kades = $kades ? $kades['nip'] : '-';
+$nip_kades  = $kades ? $kades['nip'] : '-';
 
-// Create PDF using FPDF
+$periode_text = 'Periode: ' . $months[$filter_month] . ' ' . $filter_year;
+
+// ── FPDF PDF CLASS ────────────────────────────────────────────────────────────
 class AttendancePDF extends FPDF {
     function Header() {
-        // Kop Surat (Government Letterhead)
-        $this->SetFont('Arial', 'B', 14);
+        $this->SetFont('Arial', 'B', 13);
         $this->Cell(0, 5, 'PEMERINTAH KABUPATEN TANJUNG JABUNG TIMUR', 0, 1, 'C');
-        $this->SetFont('Arial', 'B', 12);
+        $this->SetFont('Arial', 'B', 11);
         $this->Cell(0, 5, 'KECAMATAN BERBAK', 0, 1, 'C');
-        $this->SetFont('Arial', 'B', 14);
+        $this->SetFont('Arial', 'B', 13);
         $this->Cell(0, 6, 'KANTOR DESA SUNGAI RAMBUT', 0, 1, 'C');
-        $this->SetFont('Arial', 'I', 9);
+        $this->SetFont('Arial', 'I', 8.5);
         $this->Cell(0, 4, 'Alamat: Jalan Lintas Desa, Sungai Rambut, Kode Pos 36765', 0, 1, 'C');
-        
-        // Double line divider
+
         $this->SetLineWidth(0.8);
-        $this->Line(10, 33, 200, 33);
+        $this->Line(10, 33, 287, 33);
         $this->SetLineWidth(0.2);
-        $this->Line(10, 34, 200, 34);
+        $this->Line(10, 34.2, 287, 34.2);
         $this->Ln(8);
     }
 
     function Footer() {
-        // Position at 1.5 cm from bottom
         $this->SetY(-15);
         $this->SetFont('Arial', 'I', 8);
-        // Page number
         $this->Cell(0, 10, 'Halaman ' . $this->PageNo() . '/{nb}', 0, 0, 'C');
     }
 }
 
-$pdf = new AttendancePDF('P', 'mm', 'A4');
+$pdf = new AttendancePDF('L', 'mm', 'A4'); // Landscape for more columns
 $pdf->AliasNbPages();
 $pdf->AddPage();
 $pdf->SetMargins(10, 10, 10);
 
-// Report Title
+// Title
 $pdf->SetFont('Arial', 'B', 12);
-$pdf->Cell(0, 6, 'LAPORAN PRESENSI STAF DESA', 0, 1, 'C');
+$pdf->Cell(0, 6, 'LAPORAN PRESENSI STAF DESA SUNGAI RAMBUT', 0, 1, 'C');
 $pdf->SetFont('Arial', '', 10);
 $pdf->Cell(0, 6, $periode_text, 0, 1, 'C');
-$pdf->Ln(5);
+$pdf->Ln(4);
 
-// Table Header
+// ── REKAP SUMMARY ─────────────────────────────────────────────────────────────
 $pdf->SetFont('Arial', 'B', 9);
 $pdf->SetFillColor(230, 235, 245);
-$pdf->Cell(10, 8, 'No', 1, 0, 'C', true);
-$pdf->Cell(50, 8, 'Nama Pegawai', 1, 0, 'L', true);
-$pdf->Cell(25, 8, 'Tanggal', 1, 0, 'C', true);
-$pdf->Cell(25, 8, 'Jam Masuk', 1, 0, 'C', true);
-$pdf->Cell(25, 8, 'Jam Pulang', 1, 0, 'C', true);
-$pdf->Cell(22, 8, 'Status', 1, 0, 'C', true);
-$pdf->Cell(33, 8, 'Keterangan', 1, 1, 'L', true);
+$pdf->Cell(267, 6, 'REKAP KEHADIRAN', 1, 1, 'C', true);
 
-// Table Data
-$pdf->SetFont('Arial', '', 9);
+$pdf->SetFont('Arial', 'B', 9);
+$pdf->Cell(38.14, 7, 'Total Record', 1, 0, 'C', true);
+$pdf->Cell(38.14, 7, 'Hadir',        1, 0, 'C', true);
+$pdf->Cell(38.14, 7, 'Terlambat',    1, 0, 'C', true);
+$pdf->Cell(38.14, 7, 'Alpha',        1, 0, 'C', true);
+$pdf->Cell(38.14, 7, 'Sakit',        1, 0, 'C', true);
+$pdf->Cell(38.14, 7, 'Izin',         1, 0, 'C', true);
+$pdf->Cell(38.14, 7, 'Total Terlambat', 1, 1, 'C', true);
+
+$pdf->SetFont('Arial', '', 10);
+$pdf->Cell(38.14, 8, count($presensi_list), 1, 0, 'C');
+$pdf->Cell(38.14, 8, $rekap_hadir,          1, 0, 'C');
+$pdf->Cell(38.14, 8, $rekap_terlambat,      1, 0, 'C');
+$pdf->Cell(38.14, 8, $rekap_alpha,          1, 0, 'C');
+$pdf->Cell(38.14, 8, $rekap_sakit,          1, 0, 'C');
+$pdf->Cell(38.14, 8, $rekap_izin,           1, 0, 'C');
+$pdf->Cell(38.14, 8, $total_late_min . ' mnt', 1, 1, 'C');
+$pdf->Ln(6);
+
+// ── GROUP BY EMPLOYEE ─────────────────────────────────────────────────────────
+$employees = [];
+foreach ($presensi_list as $p) {
+    $uid = $p['user_id'];
+    if (!isset($employees[$uid])) {
+        $employees[$uid] = [
+            'nama_lengkap' => $p['nama_lengkap'],
+            'nip'          => $p['nip'] ?? '-',
+            'nama_jabatan' => $p['nama_jabatan'] ?? 'Staf',
+            'hadir'        => 0,
+            'terlambat'    => 0,
+            'alpha'        => 0,
+            'sakit'        => 0,
+            'izin'         => 0,
+            'late_minute'  => 0,
+            'early_minute' => 0
+        ];
+    }
+    switch ($p['status']) {
+        case 'hadir':     $employees[$uid]['hadir']++;     break;
+        case 'terlambat': $employees[$uid]['terlambat']++; break;
+        case 'alpha':     $employees[$uid]['alpha']++;     break;
+        case 'sakit':     $employees[$uid]['sakit']++;     break;
+        case 'izin':      $employees[$uid]['izin']++;      break;
+    }
+    $employees[$uid]['late_minute']  += (int)($p['late_minute'] ?? 0);
+    $employees[$uid]['early_minute'] += (int)($p['early_minute'] ?? 0);
+}
+
+// ── TABLE HEADER ──────────────────────────────────────────────────────────────
+$pdf->SetFont('Arial', 'B', 8.5);
+$pdf->SetFillColor(230, 235, 245);
+
+// Col widths: No | Nama | Jabatan | Hadir | Terlambat | Alpha | Sakit | Izin | Late | Early
+$cw = [10, 70, 55, 20, 22, 20, 20, 20, 15, 15];
+
+$pdf->Cell($cw[0],  8, 'No',         1, 0, 'C', true);
+$pdf->Cell($cw[1],  8, 'Nama Pegawai', 1, 0, 'L', true);
+$pdf->Cell($cw[2],  8, 'Jabatan',    1, 0, 'L', true);
+$pdf->Cell($cw[3],  8, 'Hadir',      1, 0, 'C', true);
+$pdf->Cell($cw[4],  8, 'Terlambat',  1, 0, 'C', true);
+$pdf->Cell($cw[5],  8, 'Alpha',      1, 0, 'C', true);
+$pdf->Cell($cw[6],  8, 'Sakit',      1, 0, 'C', true);
+$pdf->Cell($cw[7],  8, 'Izin',       1, 0, 'C', true);
+$pdf->Cell($cw[8],  8, 'Late(m)',    1, 0, 'C', true);
+$pdf->Cell($cw[9],  8, 'Early(m)',   1, 1, 'C', true);
+
+// ── TABLE DATA ────────────────────────────────────────────────────────────────
+$pdf->SetFont('Arial', '', 8.5);
 $no = 1;
-if (empty($presensi_list)) {
-    $pdf->Cell(190, 8, 'Tidak ada data presensi.', 1, 1, 'C');
+if (empty($employees)) {
+    $pdf->Cell(array_sum($cw), 8, 'Tidak ada data presensi.', 1, 1, 'C');
 } else {
-    foreach ($presensi_list as $p) {
-        // Calculate cell heights & alignment
-        $pdf->Cell(10, 8, $no++, 1, 0, 'C');
-        $pdf->Cell(50, 8, substr($p['nama_lengkap'], 0, 25), 1, 0, 'L');
-        $pdf->Cell(25, 8, date('d-m-Y', strtotime($p['tanggal'])), 1, 0, 'C');
-        $pdf->Cell(25, 8, $p['jam_masuk'] ? date('H:i', strtotime($p['jam_masuk'])) : '-', 1, 0, 'C');
-        $pdf->Cell(25, 8, $p['jam_keluar'] ? date('H:i', strtotime($p['jam_keluar'])) : '-', 1, 0, 'C');
-        $pdf->Cell(22, 8, ucfirst($p['status']), 1, 0, 'C');
-        $pdf->Cell(33, 8, $p['keterangan'] ? substr($p['keterangan'], 0, 18) : '-', 1, 1, 'L');
+    foreach ($employees as $emp) {
+        $nama   = mb_substr($emp['nama_lengkap'], 0, 30);
+        $jabatan = mb_substr($emp['nama_jabatan'], 0, 25);
+        $late   = $emp['late_minute'];
+        $early  = $emp['early_minute'];
+
+        $pdf->Cell($cw[0],  7.5, $no++,                             1, 0, 'C');
+        $pdf->Cell($cw[1],  7.5, $nama,                             1, 0, 'L');
+        $pdf->Cell($cw[2],  7.5, $jabatan,                          1, 0, 'L');
+        $pdf->Cell($cw[3],  7.5, $emp['hadir'],                     1, 0, 'C');
+        $pdf->Cell($cw[4],  7.5, $emp['terlambat'],                 1, 0, 'C');
+        $pdf->Cell($cw[5],  7.5, $emp['alpha'],                     1, 0, 'C');
+        $pdf->Cell($cw[6],  7.5, $emp['sakit'],                     1, 0, 'C');
+        $pdf->Cell($cw[7],  7.5, $emp['izin'],                      1, 0, 'C');
+        $pdf->Cell($cw[8],  7.5, $late > 0 ? $late : '-',           1, 0, 'C');
+        $pdf->Cell($cw[9],  7.5, $early > 0 ? $early : '-',         1, 1, 'C');
     }
 }
-$pdf->Ln(15);
 
-// Signature area
+$pdf->Ln(12);
+
+// ── SIGNATURE AREA ────────────────────────────────────────────────────────────
 $pdf->SetFont('Arial', '', 10);
-$pdf->Cell(120);
-$pdf->Cell(60, 5, 'Sungai Rambut, ' . date('d F Y'), 0, 1, 'C');
-$pdf->Cell(120);
-$pdf->Cell(60, 5, 'Mengetahui,', 0, 1, 'C');
-$pdf->Cell(120);
-$pdf->Cell(60, 5, 'Kepala Desa Sungai Rambut', 0, 1, 'C');
-$pdf->Ln(20); // space for actual signature
+$pdf->Cell(180);
+$pdf->Cell(80, 5, 'Sungai Rambut, ' . date('d F Y'), 0, 1, 'C');
+$pdf->Cell(180);
+$pdf->Cell(80, 5, 'Mengetahui,', 0, 1, 'C');
+$pdf->Cell(180);
+$pdf->Cell(80, 5, 'Kepala Desa Sungai Rambut', 0, 1, 'C');
+$pdf->Ln(20);
 
 $pdf->SetFont('Arial', 'B', 10);
-$pdf->Cell(120);
-$pdf->Cell(60, 5, $nama_kades, 0, 1, 'C');
-$pdf->SetFont('Arial', '', 10);
-$pdf->Cell(120);
-$pdf->Cell(60, 5, 'NIP: ' . $nip_kades, 0, 1, 'C');
+$pdf->Cell(180);
+$pdf->Cell(80, 5, $nama_kades, 0, 1, 'C');
+$pdf->SetFont('Arial', '', 9);
+$pdf->Cell(180);
+$pdf->Cell(80, 5, 'NIP: ' . $nip_kades, 0, 1, 'C');
 
-// Output PDF to browser
-$pdf->Output('I', 'Laporan_Presensi_Staf_Desa_' . date('Ymd_His') . '.pdf');
+$pdf->Output('I', 'Laporan_Presensi_' . $months[$filter_month] . '_' . $filter_year . '.pdf');
 ?>

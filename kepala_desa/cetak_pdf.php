@@ -126,7 +126,26 @@ if ($type === 'harian') {
     if (empty($presensi_list)) {
         $pdf->Cell(190, 8, 'Tidak ada data presensi.', 1, 1, 'C');
     } else {
+        $total_rows = count($presensi_list);
+        $curr_idx = 0;
         foreach ($presensi_list as $p) {
+            $remaining_rows = $total_rows - $curr_idx;
+            $space_needed_for_rest = ($remaining_rows * 8) + 35;
+            if ($pdf->GetY() + $space_needed_for_rest > 275 && $pdf->GetY() + ($remaining_rows * 8) <= 275) {
+                $pdf->AddPage();
+                // Reprint table header
+                $pdf->SetFont('Arial', 'B', 9);
+                $pdf->SetFillColor(230, 235, 245);
+                $pdf->Cell(10, 8, 'No', 1, 0, 'C', true);
+                $pdf->Cell(50, 8, 'Nama Pegawai', 1, 0, 'L', true);
+                $pdf->Cell(25, 8, 'Tanggal', 1, 0, 'C', true);
+                $pdf->Cell(25, 8, 'Jam Masuk', 1, 0, 'C', true);
+                $pdf->Cell(25, 8, 'Jam Pulang', 1, 0, 'C', true);
+                $pdf->Cell(22, 8, 'Status', 1, 0, 'C', true);
+                $pdf->Cell(33, 8, 'Keterangan', 1, 1, 'L', true);
+                $pdf->SetFont('Arial', '', 9);
+            }
+            $curr_idx++;
             $pdf->Cell(10, 8, $no++, 1, 0, 'C');
             $pdf->Cell(50, 8, substr($p['nama_lengkap'], 0, 25), 1, 0, 'L');
             $pdf->Cell(25, 8, date('d-m-Y', strtotime($p['tanggal'])), 1, 0, 'C');
@@ -179,7 +198,25 @@ if ($type === 'harian') {
     if (empty($employees)) {
         $pdf->Cell(190, 8, 'Tidak ada data presensi.', 1, 1, 'C');
     } else {
+        $row_count = 0;
         foreach ($employees as $emp) {
+            if ($row_count >= 20) {
+                $pdf->AddPage();
+                // Reprint table header
+                $pdf->SetFont('Arial', 'B', 9);
+                $pdf->SetFillColor(230, 235, 245);
+                $pdf->Cell(10, 8, 'No', 1, 0, 'C', true);
+                $pdf->Cell(50, 8, 'Nama Pegawai', 1, 0, 'L', true);
+                $pdf->Cell(45, 8, 'Jabatan', 1, 0, 'L', true);
+                $pdf->Cell(17, 8, 'Hadir', 1, 0, 'C', true);
+                $pdf->Cell(17, 8, 'Tlambat', 1, 0, 'C', true);
+                $pdf->Cell(17, 8, 'Alpha', 1, 0, 'C', true);
+                $pdf->Cell(17, 8, 'Sakit', 1, 0, 'C', true);
+                $pdf->Cell(17, 8, 'Izin', 1, 1, 'C', true);
+                $pdf->SetFont('Arial', '', 9);
+                $row_count = 0;
+            }
+            $row_count++;
             $pdf->Cell(10, 8, $no++, 1, 0, 'C');
             $pdf->Cell(50, 8, substr($emp['nama_lengkap'], 0, 25), 1, 0, 'L');
             $pdf->Cell(45, 8, substr($emp['nama_jabatan'], 0, 22), 1, 0, 'L');
@@ -191,7 +228,12 @@ if ($type === 'harian') {
         }
     }
 }
-$pdf->Ln(15);
+// Check if there is enough space on the current page for the signature block
+if ($pdf->GetY() + 35 > 275) {
+    $pdf->AddPage();
+} else {
+    $pdf->Ln(8);
+}
 
 // Signature area
 $pdf->SetFont('Arial', '', 10);
@@ -201,7 +243,7 @@ $pdf->Cell(120);
 $pdf->Cell(60, 5, 'Mengetahui,', 0, 1, 'C');
 $pdf->Cell(120);
 $pdf->Cell(60, 5, 'Kepala Desa Sungai Rambut', 0, 1, 'C');
-$pdf->Ln(20); // space for actual signature
+$pdf->Ln(15); // space for actual signature
 
 $pdf->SetFont('Arial', 'B', 10);
 $pdf->Cell(120);

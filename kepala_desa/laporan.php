@@ -44,6 +44,32 @@ if ($type === 'harian') {
     $presensi_list = $stmt->fetchAll();
 }
 
+// Group monthly/yearly records by employee for bulanan/tahunan
+$employees = [];
+if ($type !== 'harian') {
+    foreach ($presensi_list as $p) {
+        $uid = $p['user_id'];
+        if (!isset($employees[$uid])) {
+            $employees[$uid] = [
+                'nama_lengkap' => $p['nama_lengkap'],
+                'nama_jabatan' => $p['nama_jabatan'] ?? 'Staf',
+                'hadir'        => 0,
+                'terlambat'    => 0,
+                'alpha'        => 0,
+                'sakit'        => 0,
+                'izin'         => 0
+            ];
+        }
+        switch ($p['status']) {
+            case 'hadir':     $employees[$uid]['hadir']++;     break;
+            case 'terlambat': $employees[$uid]['terlambat']++; break;
+            case 'alpha':     $employees[$uid]['alpha']++;     break;
+            case 'sakit':     $employees[$uid]['sakit']++;     break;
+            case 'izin':      $employees[$uid]['izin']++;      break;
+        }
+    }
+}
+
 $months = [
     '01' => 'Januari', '02' => 'Februari', '03' => 'Maret', '04' => 'April',
     '05' => 'Mei', '06' => 'Juni', '07' => 'Juli', '08' => 'Agustus',
@@ -129,49 +155,94 @@ $months = [
 
     <div class="table-responsive">
         <table class="table table-custom table-hover align-middle mb-0">
-            <thead>
-                <tr>
-                    <th style="width: 60px;">No</th>
-                    <th>Nama Pegawai</th>
-                    <th>Tanggal</th>
-                    <th>Jam Masuk</th>
-                    <th>Jam Pulang</th>
-                    <th class="text-center">Status</th>
-                    <th>Keterangan</th>
-                </tr>
-            </thead>
-            <tbody>
-                <?php if (empty($presensi_list)): ?>
+            <?php if ($type === 'harian'): ?>
+                <thead>
                     <tr>
-                        <td colspan="7" class="text-center text-muted py-4">Tidak ada data presensi yang ditemukan untuk kriteria ini.</td>
+                        <th style="width: 60px;">No</th>
+                        <th>Nama Pegawai</th>
+                        <th>Tanggal</th>
+                        <th>Jam Masuk</th>
+                        <th>Jam Pulang</th>
+                        <th class="text-center">Status</th>
+                        <th>Keterangan</th>
                     </tr>
-                <?php else: $no = 1; foreach ($presensi_list as $p): ?>
+                </thead>
+                <tbody>
+                    <?php if (empty($presensi_list)): ?>
+                        <tr>
+                            <td colspan="7" class="text-center text-muted py-4">Tidak ada data presensi yang ditemukan untuk kriteria ini.</td>
+                        </tr>
+                    <?php else: $no = 1; foreach ($presensi_list as $p): ?>
+                        <tr>
+                            <td><?= $no++ ?></td>
+                            <td>
+                                <div class="fw-semibold text-dark"><?= htmlspecialchars($p['nama_lengkap']) ?></div>
+                                <small class="text-muted"><?= htmlspecialchars($p['nama_jabatan'] ?? 'Staf') ?></small>
+                            </td>
+                            <td><?= date('d-m-Y', strtotime($p['tanggal'])) ?></td>
+                            <td><?= $p['jam_masuk'] ? date('H:i', strtotime($p['jam_masuk'])) : '-' ?></td>
+                            <td><?= $p['jam_keluar'] ? date('H:i', strtotime($p['jam_keluar'])) : '-' ?></td>
+                            <td class="text-center">
+                                <?php if ($p['status'] === 'hadir'): ?>
+                                    <span class="badge badge-hadir px-2.5 py-1.5 rounded-pill">Hadir</span>
+                                <?php elseif ($p['status'] === 'terlambat'): ?>
+                                    <span class="badge badge-terlambat px-2.5 py-1.5 rounded-pill">Terlambat</span>
+                                <?php elseif ($p['status'] === 'alpha'): ?>
+                                    <span class="badge badge-alpha px-2.5 py-1.5 rounded-pill">Alpha</span>
+                                <?php elseif ($p['status'] === 'sakit'): ?>
+                                    <span class="badge badge-sakit px-2.5 py-1.5 rounded-pill">Sakit</span>
+                                <?php elseif ($p['status'] === 'izin'): ?>
+                                    <span class="badge badge-izin px-2.5 py-1.5 rounded-pill">Izin</span>
+                                <?php endif; ?>
+                            </td>
+                            <td class="small text-secondary"><?= htmlspecialchars($p['keterangan'] ?? '-') ?></td>
+                        </tr>
+                    <?php endforeach; endif; ?>
+                </tbody>
+            <?php else: ?>
+                <thead>
                     <tr>
-                        <td><?= $no++ ?></td>
-                        <td>
-                            <div class="fw-semibold text-dark"><?= htmlspecialchars($p['nama_lengkap']) ?></div>
-                            <small class="text-muted"><?= htmlspecialchars($p['nama_jabatan'] ?? 'Staf') ?></small>
-                        </td>
-                        <td><?= date('d-m-Y', strtotime($p['tanggal'])) ?></td>
-                        <td><?= $p['jam_masuk'] ? date('H:i', strtotime($p['jam_masuk'])) : '-' ?></td>
-                        <td><?= $p['jam_keluar'] ? date('H:i', strtotime($p['jam_keluar'])) : '-' ?></td>
-                        <td class="text-center">
-                            <?php if ($p['status'] === 'hadir'): ?>
-                                <span class="badge badge-hadir px-2.5 py-1.5 rounded-pill">Hadir</span>
-                            <?php elseif ($p['status'] === 'terlambat'): ?>
-                                <span class="badge badge-terlambat px-2.5 py-1.5 rounded-pill">Terlambat</span>
-                            <?php elseif ($p['status'] === 'alpha'): ?>
-                                <span class="badge badge-alpha px-2.5 py-1.5 rounded-pill">Alpha</span>
-                            <?php elseif ($p['status'] === 'sakit'): ?>
-                                <span class="badge badge-sakit px-2.5 py-1.5 rounded-pill">Sakit</span>
-                            <?php elseif ($p['status'] === 'izin'): ?>
-                                <span class="badge badge-izin px-2.5 py-1.5 rounded-pill">Izin</span>
-                            <?php endif; ?>
-                        </td>
-                        <td class="small text-secondary"><?= htmlspecialchars($p['keterangan'] ?? '-') ?></td>
+                        <th style="width: 60px;">No</th>
+                        <th>Nama Pegawai</th>
+                        <th>Jabatan</th>
+                        <th class="text-center">Hadir</th>
+                        <th class="text-center">Terlambat</th>
+                        <th class="text-center">Sakit</th>
+                        <th class="text-center">Izin</th>
+                        <th class="text-center">Alpha</th>
                     </tr>
-                <?php endforeach; endif; ?>
-            </tbody>
+                </thead>
+                <tbody>
+                    <?php if (empty($employees)): ?>
+                        <tr>
+                            <td colspan="8" class="text-center text-muted py-4">Tidak ada data presensi yang ditemukan untuk kriteria ini.</td>
+                        </tr>
+                    <?php else: $no = 1; foreach ($employees as $emp): ?>
+                        <tr>
+                            <td><?= $no++ ?></td>
+                            <td>
+                                <div class="fw-semibold text-dark"><?= htmlspecialchars($emp['nama_lengkap']) ?></div>
+                            </td>
+                            <td><?= htmlspecialchars($emp['nama_jabatan']) ?></td>
+                            <td class="text-center">
+                                <span class="badge badge-hadir px-2.5 py-1.5 rounded-pill"><?= $emp['hadir'] ?></span>
+                            </td>
+                            <td class="text-center">
+                                <span class="badge badge-terlambat px-2.5 py-1.5 rounded-pill"><?= $emp['terlambat'] ?></span>
+                            </td>
+                            <td class="text-center">
+                                <span class="badge badge-sakit px-2.5 py-1.5 rounded-pill"><?= $emp['sakit'] ?></span>
+                            </td>
+                            <td class="text-center">
+                                <span class="badge badge-izin px-2.5 py-1.5 rounded-pill"><?= $emp['izin'] ?></span>
+                            </td>
+                            <td class="text-center">
+                                <span class="badge badge-alpha px-2.5 py-1.5 rounded-pill"><?= $emp['alpha'] ?></span>
+                            </td>
+                        </tr>
+                    <?php endforeach; endif; ?>
+                </tbody>
+            <?php endif; ?>
         </table>
     </div>
 </div>

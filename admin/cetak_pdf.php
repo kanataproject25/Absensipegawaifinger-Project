@@ -214,7 +214,28 @@ $no = 1;
 if (empty($employees)) {
     $pdf->Cell(array_sum($cw), 8, 'Tidak ada data presensi.', 1, 1, 'C');
 } else {
+    $row_count = 0;
     foreach ($employees as $emp) {
+        if ($row_count >= 20) {
+            $pdf->AddPage();
+            // Reprint table header
+            $pdf->SetFont('Arial', 'B', 8.5);
+            $pdf->SetFillColor(230, 235, 245);
+            $pdf->Cell($cw[0], 8, 'No', 1, 0, 'C', true);
+            $pdf->Cell($cw[1], 8, 'Nama Pegawai', 1, 0, 'L', true);
+            $pdf->Cell($cw[2], 8, 'Jabatan', 1, 0, 'L', true);
+            $pdf->Cell($cw[3], 8, 'Hadir', 1, 0, 'C', true);
+            $pdf->Cell($cw[4], 8, 'Terlambat', 1, 0, 'C', true);
+            $pdf->Cell($cw[5], 8, 'Alpha', 1, 0, 'C', true);
+            $pdf->Cell($cw[6], 8, 'Sakit', 1, 0, 'C', true);
+            $pdf->Cell($cw[7], 8, 'Izin', 1, 0, 'C', true);
+            $pdf->Cell($cw[8], 8, 'Late(m)', 1, 0, 'C', true);
+            $pdf->Cell($cw[9], 8, 'Early(m)', 1, 1, 'C', true);
+            $pdf->SetFont('Arial', '', 8.5);
+            $row_count = 0;
+        }
+        $row_count++;
+
         $nama = mb_substr($emp['nama_lengkap'], 0, 30);
         $jabatan = mb_substr($emp['nama_jabatan'], 0, 25);
         $late = $emp['late_minute'];
@@ -233,7 +254,12 @@ if (empty($employees)) {
     }
 }
 
-$pdf->Ln(12);
+// Check if there is enough space on the current page for the signature block
+if ($pdf->GetY() + 40 > $pdf->GetPageHeight() - 15) {
+    $pdf->AddPage();
+} else {
+    $pdf->Ln(8);
+}
 
 // ── SIGNATURE AREA ────────────────────────────────────────────────────────────
 $pdf->SetFont('Arial', '', 10);

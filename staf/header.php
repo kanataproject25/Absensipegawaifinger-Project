@@ -192,6 +192,11 @@ $current_page = basename($_SERVER['PHP_SELF']);
                     <i class="bi bi-person-circle"></i> Profil Saya
                 </a>
             </li>
+            <li class="nav-item">
+                <a class="nav-link <?= ($current_page === 'pengajuan.php') ? 'active' : '' ?>" href="pengajuan.php">
+                    <i class="bi bi-envelope-paper"></i> Pengajuan Izin/Sakit
+                </a>
+            </li>
         </ul>
 
         <div class="mt-auto pt-3 border-top border-secondary border-opacity-25">

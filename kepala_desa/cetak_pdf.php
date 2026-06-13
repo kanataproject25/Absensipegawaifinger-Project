@@ -113,12 +113,11 @@ if ($type === 'harian') {
     $pdf->SetFont('Arial', 'B', 9);
     $pdf->SetFillColor(230, 235, 245);
     $pdf->Cell(10, 8, 'No', 1, 0, 'C', true);
-    $pdf->Cell(50, 8, 'Nama Pegawai', 1, 0, 'L', true);
-    $pdf->Cell(25, 8, 'Tanggal', 1, 0, 'C', true);
-    $pdf->Cell(25, 8, 'Jam Masuk', 1, 0, 'C', true);
-    $pdf->Cell(25, 8, 'Jam Pulang', 1, 0, 'C', true);
-    $pdf->Cell(22, 8, 'Status', 1, 0, 'C', true);
-    $pdf->Cell(33, 8, 'Keterangan', 1, 1, 'L', true);
+    $pdf->Cell(70, 8, 'Nama Pegawai', 1, 0, 'L', true);
+    $pdf->Cell(30, 8, 'Tanggal', 1, 0, 'C', true);
+    $pdf->Cell(27, 8, 'Jam Masuk', 1, 0, 'C', true);
+    $pdf->Cell(27, 8, 'Jam Pulang', 1, 0, 'C', true);
+    $pdf->Cell(26, 8, 'Status', 1, 1, 'C', true);
 
     // Table Data
     $pdf->SetFont('Arial', '', 9);
@@ -137,22 +136,20 @@ if ($type === 'harian') {
                 $pdf->SetFont('Arial', 'B', 9);
                 $pdf->SetFillColor(230, 235, 245);
                 $pdf->Cell(10, 8, 'No', 1, 0, 'C', true);
-                $pdf->Cell(50, 8, 'Nama Pegawai', 1, 0, 'L', true);
-                $pdf->Cell(25, 8, 'Tanggal', 1, 0, 'C', true);
-                $pdf->Cell(25, 8, 'Jam Masuk', 1, 0, 'C', true);
-                $pdf->Cell(25, 8, 'Jam Pulang', 1, 0, 'C', true);
-                $pdf->Cell(22, 8, 'Status', 1, 0, 'C', true);
-                $pdf->Cell(33, 8, 'Keterangan', 1, 1, 'L', true);
+                $pdf->Cell(70, 8, 'Nama Pegawai', 1, 0, 'L', true);
+                $pdf->Cell(30, 8, 'Tanggal', 1, 0, 'C', true);
+                $pdf->Cell(27, 8, 'Jam Masuk', 1, 0, 'C', true);
+                $pdf->Cell(27, 8, 'Jam Pulang', 1, 0, 'C', true);
+                $pdf->Cell(26, 8, 'Status', 1, 1, 'C', true);
                 $pdf->SetFont('Arial', '', 9);
             }
             $curr_idx++;
             $pdf->Cell(10, 8, $no++, 1, 0, 'C');
-            $pdf->Cell(50, 8, substr($p['nama_lengkap'], 0, 25), 1, 0, 'L');
-            $pdf->Cell(25, 8, date('d-m-Y', strtotime($p['tanggal'])), 1, 0, 'C');
-            $pdf->Cell(25, 8, $p['jam_masuk'] ? date('H:i', strtotime($p['jam_masuk'])) : '-', 1, 0, 'C');
-            $pdf->Cell(25, 8, $p['jam_keluar'] ? date('H:i', strtotime($p['jam_keluar'])) : '-', 1, 0, 'C');
-            $pdf->Cell(22, 8, ucfirst($p['status']), 1, 0, 'C');
-            $pdf->Cell(33, 8, $p['keterangan'] ? substr($p['keterangan'], 0, 18) : '-', 1, 1, 'L');
+            $pdf->Cell(70, 8, substr($p['nama_lengkap'], 0, 35), 1, 0, 'L');
+            $pdf->Cell(30, 8, date('d-m-Y', strtotime($p['tanggal'])), 1, 0, 'C');
+            $pdf->Cell(27, 8, $p['jam_masuk'] ? date('H:i', strtotime($p['jam_masuk'])) : '-', 1, 0, 'C');
+            $pdf->Cell(27, 8, $p['jam_keluar'] ? date('H:i', strtotime($p['jam_keluar'])) : '-', 1, 0, 'C');
+            $pdf->Cell(26, 8, ucfirst($p['status']), 1, 1, 'C');
         }
     }
 } else {

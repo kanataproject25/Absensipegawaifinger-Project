@@ -210,6 +210,11 @@ $current_page = basename($_SERVER['PHP_SELF']);
                 </a>
             </li>
             <li class="nav-item">
+                <a class="nav-link <?= ($current_page === 'verifikasi_izin.php') ? 'active' : '' ?>" href="verifikasi_izin.php">
+                    <i class="bi bi-envelope-paper"></i> Verifikasi Izin/Sakit
+                </a>
+            </li>
+            <li class="nav-item">
                 <a class="nav-link <?= ($current_page === 'akun.php') ? 'active' : '' ?>" href="akun.php">
                     <i class="bi bi-person-gear"></i> Kelola Akun
                 </a>

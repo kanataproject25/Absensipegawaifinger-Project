@@ -45,6 +45,8 @@ $rekap_izin      = 0;
 $total_late_min  = 0;
 $total_early_min = 0;
 
+$grouped_employees = [];
+
 foreach ($presensi_list as $p) {
     switch ($p['status']) {
         case 'hadir':     $rekap_hadir++;     break;
@@ -55,6 +57,33 @@ foreach ($presensi_list as $p) {
     }
     $total_late_min  += (int)($p['late_minute']  ?? 0);
     $total_early_min += (int)($p['early_minute'] ?? 0);
+    
+    $uid = $p['user_id'];
+    if (!isset($grouped_employees[$uid])) {
+        $grouped_employees[$uid] = [
+            'nama_lengkap' => $p['nama_lengkap'],
+            'nip' => $p['nip'] ?? '-',
+            'nama_jabatan' => $p['nama_jabatan'] ?? 'Staf',
+            'hadir' => 0,
+            'terlambat' => 0,
+            'alpha' => 0,
+            'sakit' => 0,
+            'izin' => 0,
+            'late_minute' => 0,
+            'early_minute' => 0,
+            'records' => []
+        ];
+    }
+    switch ($p['status']) {
+        case 'hadir':     $grouped_employees[$uid]['hadir']++;     break;
+        case 'terlambat': $grouped_employees[$uid]['terlambat']++; break;
+        case 'alpha':     $grouped_employees[$uid]['alpha']++;     break;
+        case 'sakit':     $grouped_employees[$uid]['sakit']++;     break;
+        case 'izin':      $grouped_employees[$uid]['izin']++;      break;
+    }
+    $grouped_employees[$uid]['late_minute']  += (int)($p['late_minute']  ?? 0);
+    $grouped_employees[$uid]['early_minute'] += (int)($p['early_minute'] ?? 0);
+    $grouped_employees[$uid]['records'][] = $p;
 }
 
 // Staff dropdown
@@ -160,48 +189,7 @@ try {
         </div>
     </div>
 </div>
-
-<!-- Additional Stats Row -->
-<div class="row g-3 mb-4">
-    <div class="col-md-6">
-        <div class="card card-custom py-3">
-            <div class="d-flex align-items-center">
-                <div class="rounded-circle d-flex align-items-center justify-content-center me-3 flex-shrink-0" 
-                     style="width:48px;height:48px;background:rgba(231,76,60,0.12);">
-                    <i class="bi bi-clock-history text-danger fs-4"></i>
-                </div>
-                <div>
-                    <div class="text-muted small">Total Akumulasi Keterlambatan</div>
-                    <div class="fw-bold fs-5 text-danger"><?= $total_late_min ?> <small class="fw-normal text-muted">menit</small>
-                        <?php if ($total_late_min >= 60): ?>
-                            <small class="text-muted fw-normal">(≈ <?= round($total_late_min/60, 1) ?> jam)</small>
-                        <?php endif; ?>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-    <div class="col-md-6">
-        <div class="card card-custom py-3">
-            <div class="d-flex align-items-center">
-                <div class="rounded-circle d-flex align-items-center justify-content-center me-3 flex-shrink-0" 
-                     style="width:48px;height:48px;background:rgba(230,126,34,0.12);">
-                    <i class="bi bi-box-arrow-right text-warning fs-4"></i>
-                </div>
-                <div>
-                    <div class="text-muted small">Total Akumulasi Pulang Cepat</div>
-                    <div class="fw-bold fs-5 text-warning"><?= $total_early_min ?> <small class="fw-normal text-muted">menit</small>
-                        <?php if ($total_early_min >= 60): ?>
-                            <small class="text-muted fw-normal">(≈ <?= round($total_early_min/60, 1) ?> jam)</small>
-                        <?php endif; ?>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
 <?php endif; ?>
-
 <!-- Data Table -->
 <div class="card card-custom">
     <div class="d-flex justify-content-between align-items-center mb-4">
@@ -222,61 +210,106 @@ try {
                 <tr>
                     <th style="width:45px;">No</th>
                     <th>Nama Pegawai</th>
-                    <th>Tanggal</th>
-                    <th class="text-center" style="background:rgba(46,204,113,0.07);">AM In</th>
-                    <th class="text-center" style="background:rgba(46,204,113,0.07);">AM Out</th>
-                    <th class="text-center" style="background:rgba(52,152,219,0.07);">PM In</th>
-                    <th class="text-center" style="background:rgba(52,152,219,0.07);">PM Out</th>
-                    <th class="text-center"><span class="text-danger">Late</span><br><small>(mnt)</small></th>
-                    <th class="text-center"><span class="text-warning">Early</span><br><small>(mnt)</small></th>
-                    <th class="text-center">Status</th>
+                    <th>Jabatan</th>
+                    <th class="text-center">Hadir</th>
+                    <th class="text-center">Terlambat</th>
+                    <th class="text-center">Alpha</th>
+                    <th class="text-center">Sakit</th>
+                    <th class="text-center">Izin</th>
+                    <th class="text-center">Late (m)</th>
+                    <th class="text-center">Early (m)</th>
+                    <th class="text-center" style="width:120px;">Detail</th>
                 </tr>
             </thead>
             <tbody>
-                <?php if (empty($presensi_list)): ?>
+                <?php if (empty($grouped_employees)): ?>
                     <tr>
-                        <td colspan="10" class="text-center text-muted py-5">
+                        <td colspan="11" class="text-center text-muted py-5">
                             <i class="bi bi-calendar-x display-6 d-block mb-2 text-secondary"></i>
                             Tidak ada data presensi untuk periode <?= $months[$filter_month] ?> <?= $filter_year ?>.
                         </td>
                     </tr>
-                <?php else: $no = 1; foreach ($presensi_list as $p): ?>
+                <?php else: $no = 1; foreach ($grouped_employees as $uid => $emp): ?>
                     <tr>
                         <td><?= $no++ ?></td>
                         <td>
-                            <div class="fw-semibold text-dark"><?= htmlspecialchars($p['nama_lengkap']) ?></div>
-                            <small class="text-muted"><?= htmlspecialchars($p['nama_jabatan'] ?? 'Staf') ?></small>
+                            <div class="fw-semibold text-dark"><?= htmlspecialchars($emp['nama_lengkap']) ?></div>
+                            <small class="text-muted">NIP: <?= htmlspecialchars($emp['nip']) ?></small>
                         </td>
-                        <td>
-                            <?= date('d M Y', strtotime($p['tanggal'])) ?>
-                            <br><small class="text-muted"><?= date('l', strtotime($p['tanggal'])) ?></small>
-                        </td>
-                        <td class="text-center" style="background:rgba(46,204,113,0.04);">
-                            <?= !empty($p['am_in'])  ? '<span class="text-success fw-semibold">'.date('H:i', strtotime($p['am_in'])).'</span>'  : '<span class="text-muted">-</span>' ?>
-                        </td>
-                        <td class="text-center" style="background:rgba(46,204,113,0.04);">
-                            <?= !empty($p['am_out']) ? date('H:i', strtotime($p['am_out'])) : '<span class="text-muted">-</span>' ?>
-                        </td>
-                        <td class="text-center" style="background:rgba(52,152,219,0.04);">
-                            <?= !empty($p['pm_in'])  ? date('H:i', strtotime($p['pm_in']))  : '<span class="text-muted">-</span>' ?>
-                        </td>
-                        <td class="text-center" style="background:rgba(52,152,219,0.04);">
-                            <?= !empty($p['pm_out']) ? '<span class="text-primary fw-semibold">'.date('H:i', strtotime($p['pm_out'])).'</span>' : '<span class="text-muted">-</span>' ?>
-                        </td>
+                        <td><?= htmlspecialchars($emp['nama_jabatan']) ?></td>
+                        <td class="text-center"><span class="badge bg-success bg-opacity-10 text-success px-2"><?= $emp['hadir'] ?></span></td>
+                        <td class="text-center"><span class="badge bg-warning bg-opacity-10 text-warning px-2"><?= $emp['terlambat'] ?></span></td>
+                        <td class="text-center"><span class="badge bg-danger bg-opacity-10 text-danger px-2"><?= $emp['alpha'] ?></span></td>
+                        <td class="text-center"><span class="badge bg-info bg-opacity-10 text-info px-2"><?= $emp['sakit'] ?></span></td>
+                        <td class="text-center"><span class="badge bg-secondary bg-opacity-10 text-secondary px-2"><?= $emp['izin'] ?></span></td>
+                        <td class="text-center"><?= $emp['late_minute'] > 0 ? '<span class="text-danger fw-semibold">'.$emp['late_minute'].'</span>' : '<span class="text-muted">0</span>' ?></td>
+                        <td class="text-center"><?= $emp['early_minute'] > 0 ? '<span class="text-warning fw-semibold">'.$emp['early_minute'].'</span>' : '<span class="text-muted">0</span>' ?></td>
                         <td class="text-center">
-                            <?php $lm = (int)($p['late_minute'] ?? 0); ?>
-                            <?= $lm > 0 ? '<span class="badge bg-danger bg-opacity-15 text-danger px-2">'.$lm.'</span>' : '<span class="text-muted">0</span>' ?>
+                            <button class="btn btn-sm btn-outline-primary" type="button" data-bs-toggle="collapse" data-bs-target="#detail-<?= $uid ?>" aria-expanded="false" aria-controls="detail-<?= $uid ?>">
+                                <i class="bi bi-chevron-down me-1"></i> Detail
+                            </button>
                         </td>
-                        <td class="text-center">
-                            <?php $em = (int)($p['early_minute'] ?? 0); ?>
-                            <?= $em > 0 ? '<span class="badge bg-warning bg-opacity-15 text-warning px-2">'.$em.'</span>' : '<span class="text-muted">0</span>' ?>
-                        </td>
-                        <td class="text-center">
-                            <?php
-                            $badge_map = ['hadir'=>'badge-hadir','terlambat'=>'badge-terlambat','alpha'=>'badge-alpha','sakit'=>'badge-sakit','izin'=>'badge-izin'];
-                            $bc = $badge_map[$p['status']] ?? 'bg-secondary';
-                            ?>
-                            <span class="badge <?= $bc ?> px-2 py-1 rounded-pill"><?= ucfirst($p['status']) ?></span>
+                    </tr>
+                    <tr>
+                        <td colspan="11" class="p-0 border-0">
+                            <div class="collapse" id="detail-<?= $uid ?>">
+                                <div class="p-3 bg-light rounded-3 m-2 border">
+                                    <h6 class="fw-bold mb-3 text-secondary"><i class="bi bi-calendar3 me-2"></i>Detail Harian: <?= htmlspecialchars($emp['nama_lengkap']) ?></h6>
+                                    <div class="table-responsive">
+                                        <table class="table table-sm table-bordered table-hover align-middle bg-white mb-0" style="font-size:0.8rem;">
+                                            <thead class="table-secondary">
+                                                <tr class="text-center">
+                                                    <th>Tanggal</th>
+                                                    <th>AM In</th>
+                                                    <th>AM Out</th>
+                                                    <th>PM In</th>
+                                                    <th>PM Out</th>
+                                                    <th>Late (m)</th>
+                                                    <th>Early (m)</th>
+                                                    <th>Status</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                <?php foreach ($emp['records'] as $r): ?>
+                                                    <tr>
+                                                        <td class="text-center fw-semibold">
+                                                            <?= date('d M Y', strtotime($r['tanggal'])) ?> 
+                                                            <br><small class="text-muted">(<?= date('l', strtotime($r['tanggal'])) ?>)</small>
+                                                        </td>
+                                                        <td class="text-center">
+                                                            <?= !empty($r['am_in'])  ? '<span class="text-success fw-semibold">'.date('H:i', strtotime($r['am_in'])).'</span>'  : '<span class="text-muted">-</span>' ?>
+                                                        </td>
+                                                        <td class="text-center">
+                                                            <?= !empty($r['am_out']) ? date('H:i', strtotime($r['am_out'])) : '<span class="text-muted">-</span>' ?>
+                                                        </td>
+                                                        <td class="text-center">
+                                                            <?= !empty($r['pm_in'])  ? date('H:i', strtotime($r['pm_in']))  : '<span class="text-muted">-</span>' ?>
+                                                        </td>
+                                                        <td class="text-center">
+                                                            <?= !empty($r['pm_out']) ? '<span class="text-primary fw-semibold">'.date('H:i', strtotime($r['pm_out'])).'</span>' : '<span class="text-muted">-</span>' ?>
+                                                        </td>
+                                                        <td class="text-center">
+                                                            <?php $lm = (int)($r['late_minute'] ?? 0); ?>
+                                                            <?= $lm > 0 ? '<span class="badge bg-danger bg-opacity-15 text-danger px-2">'.$lm.'</span>' : '<span class="text-muted">0</span>' ?>
+                                                        </td>
+                                                        <td class="text-center">
+                                                            <?php $em = (int)($r['early_minute'] ?? 0); ?>
+                                                            <?= $em > 0 ? '<span class="badge bg-warning bg-opacity-15 text-warning px-2">'.$em.'</span>' : '<span class="text-muted">0</span>' ?>
+                                                        </td>
+                                                        <td class="text-center">
+                                                            <?php
+                                                            $badge_map = ['hadir'=>'badge-hadir','terlambat'=>'badge-terlambat','alpha'=>'badge-alpha','sakit'=>'badge-sakit','izin'=>'badge-izin'];
+                                                            $bc = $badge_map[$r['status']] ?? 'bg-secondary';
+                                                            ?>
+                                                            <span class="badge <?= $bc ?> px-2 py-1 rounded-pill"><?= ucfirst($r['status']) ?></span>
+                                                        </td>
+                                                    </tr>
+                                                <?php endforeach; ?>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
                         </td>
                     </tr>
                 <?php endforeach; endif; ?>

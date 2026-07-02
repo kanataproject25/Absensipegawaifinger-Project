@@ -89,6 +89,8 @@ $periode_text = 'Periode: ' . $months[$filter_month] . ' ' . $filter_year;
 // ── FPDF PDF CLASS ────────────────────────────────────────────────────────────
 class AttendancePDF extends FPDF
 {
+    public $cw = [10, 70, 55, 20, 22, 20, 20, 20, 15, 15];
+
     function Header()
     {
         $this->SetFont('Arial', 'B', 13);
@@ -105,6 +107,21 @@ class AttendancePDF extends FPDF
         $this->SetLineWidth(0.2);
         $this->Line(10, 34.2, 287, 34.2);
         $this->Ln(8);
+
+        if ($this->PageNo() > 1) {
+            $this->SetFont('Arial', 'B', 8.5);
+            $this->SetFillColor(230, 235, 245);
+            $this->Cell($this->cw[0], 8, 'No', 1, 0, 'C', true);
+            $this->Cell($this->cw[1], 8, 'Nama Pegawai', 1, 0, 'L', true);
+            $this->Cell($this->cw[2], 8, 'Jabatan', 1, 0, 'L', true);
+            $this->Cell($this->cw[3], 8, 'Hadir', 1, 0, 'C', true);
+            $this->Cell($this->cw[4], 8, 'Terlambat', 1, 0, 'C', true);
+            $this->Cell($this->cw[5], 8, 'Alpha', 1, 0, 'C', true);
+            $this->Cell($this->cw[6], 8, 'Sakit', 1, 0, 'C', true);
+            $this->Cell($this->cw[7], 8, 'Izin', 1, 0, 'C', true);
+            $this->Cell($this->cw[8], 8, 'Late(m)', 1, 0, 'C', true);
+            $this->Cell($this->cw[9], 8, 'Early(m)', 1, 1, 'C', true);
+        }
     }
 
     function Footer()
@@ -194,8 +211,7 @@ foreach ($presensi_list as $p) {
 $pdf->SetFont('Arial', 'B', 8.5);
 $pdf->SetFillColor(230, 235, 245);
 
-// Col widths: No | Nama | Jabatan | Hadir | Terlambat | Alpha | Sakit | Izin | Late | Early
-$cw = [10, 70, 55, 20, 22, 20, 20, 20, 15, 15];
+$cw = $pdf->cw;
 
 $pdf->Cell($cw[0], 8, 'No', 1, 0, 'C', true);
 $pdf->Cell($cw[1], 8, 'Nama Pegawai', 1, 0, 'L', true);
@@ -214,28 +230,7 @@ $no = 1;
 if (empty($employees)) {
     $pdf->Cell(array_sum($cw), 8, 'Tidak ada data presensi.', 1, 1, 'C');
 } else {
-    $row_count = 0;
     foreach ($employees as $emp) {
-        if ($row_count >= 20) {
-            $pdf->AddPage();
-            // Reprint table header
-            $pdf->SetFont('Arial', 'B', 8.5);
-            $pdf->SetFillColor(230, 235, 245);
-            $pdf->Cell($cw[0], 8, 'No', 1, 0, 'C', true);
-            $pdf->Cell($cw[1], 8, 'Nama Pegawai', 1, 0, 'L', true);
-            $pdf->Cell($cw[2], 8, 'Jabatan', 1, 0, 'L', true);
-            $pdf->Cell($cw[3], 8, 'Hadir', 1, 0, 'C', true);
-            $pdf->Cell($cw[4], 8, 'Terlambat', 1, 0, 'C', true);
-            $pdf->Cell($cw[5], 8, 'Alpha', 1, 0, 'C', true);
-            $pdf->Cell($cw[6], 8, 'Sakit', 1, 0, 'C', true);
-            $pdf->Cell($cw[7], 8, 'Izin', 1, 0, 'C', true);
-            $pdf->Cell($cw[8], 8, 'Late(m)', 1, 0, 'C', true);
-            $pdf->Cell($cw[9], 8, 'Early(m)', 1, 1, 'C', true);
-            $pdf->SetFont('Arial', '', 8.5);
-            $row_count = 0;
-        }
-        $row_count++;
-
         $nama = mb_substr($emp['nama_lengkap'], 0, 30);
         $jabatan = mb_substr($emp['nama_jabatan'], 0, 25);
         $late = $emp['late_minute'];

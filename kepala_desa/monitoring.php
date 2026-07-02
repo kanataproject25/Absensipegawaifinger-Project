@@ -8,6 +8,15 @@ $filter_date_start = $_GET['date_start'] ?? date('Y-m-d');
 $filter_date_end = $_GET['date_end'] ?? date('Y-m-d');
 $filter_user_id = $_GET['user_id'] ?? '';
 
+// Fetch staff members for the dropdown
+$staff_members = [];
+try {
+    $stmt = $pdo->query("SELECT id, nama_lengkap FROM users WHERE role = 'staf' ORDER BY nama_lengkap ASC");
+    $staff_members = $stmt->fetchAll();
+} catch (PDOException $e) {
+    // silently ignore or handle
+}
+
 // Build Query with Filters
 $query = "SELECT p.*, u.nama_lengkap, u.nip, j.nama_jabatan 
           FROM presensi p 
@@ -114,7 +123,7 @@ foreach ($presensi_list as $p) {
 <!-- Table Panel -->
 <div class="card panel-card p-4">
     <div class="table-responsive">
-        <table class="table table-custom table-hover align-middle mb-0">
+        <table id="monitoringTable" class="table table-custom table-hover align-middle mb-0">
             <thead>
                 <tr>
                     <th style="width: 60px;">No</th>
@@ -128,11 +137,7 @@ foreach ($presensi_list as $p) {
                 </tr>
             </thead>
             <tbody>
-                <?php if (empty($employees)): ?>
-                    <tr>
-                        <td colspan="8" class="text-center text-muted py-4">Tidak ada data presensi untuk filter ini.</td>
-                    </tr>
-                <?php else: $no = 1; foreach ($employees as $uid => $emp): ?>
+                <?php $no = 1; foreach ($employees as $uid => $emp): ?>
                     <tr>
                         <td><?= $no++ ?></td>
                         <td>
@@ -155,56 +160,88 @@ foreach ($presensi_list as $p) {
                             <span class="badge badge-alpha px-2.5 py-1.5 rounded-pill"><?= $emp['alpha'] ?></span>
                         </td>
                         <td class="text-center">
-                            <button class="btn btn-sm btn-outline-primary" type="button" data-bs-toggle="collapse" data-bs-target="#detail-<?= $uid ?>" aria-expanded="false">
+                            <button class="btn btn-sm btn-outline-primary btn-view-log" type="button" data-uid="<?= $uid ?>">
                                 <i class="bi bi-eye me-1"></i> Lihat Log
                             </button>
-                        </td>
-                    </tr>
-                    <tr class="collapse" id="detail-<?= $uid ?>">
-                        <td colspan="8" class="p-3 bg-light">
-                            <div class="card p-3 shadow-sm border-0">
-                                <h6 class="fw-bold text-dark mb-3"><i class="bi bi-clock-history me-1"></i> Rincian Harian: <?= htmlspecialchars($emp['nama_lengkap']) ?></h6>
-                                <table class="table table-bordered table-sm mb-0" style="font-size:0.875rem;">
-                                    <thead class="table-light">
-                                        <tr>
-                                            <th>Tanggal</th>
-                                            <th>Jam Masuk</th>
-                                            <th>Jam Pulang</th>
-                                            <th class="text-center">Status</th>
-                                            <th>Keterangan</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        <?php foreach ($emp['logs'] as $log): ?>
+                            <template id="template-detail-<?= $uid ?>">
+                                <div class="card p-3 shadow-sm border-0 bg-light w-100">
+                                    <h6 class="fw-bold text-dark mb-3"><i class="bi bi-clock-history me-1"></i> Rincian Harian: <?= htmlspecialchars($emp['nama_lengkap']) ?></h6>
+                                    <table class="table table-bordered table-sm mb-0" style="font-size:0.875rem;">
+                                        <thead class="table-light">
                                             <tr>
-                                                <td><?= date('d-m-Y', strtotime($log['tanggal'])) ?></td>
-                                                <td><?= $log['jam_masuk'] ? date('H:i', strtotime($log['jam_masuk'])) : '-' ?></td>
-                                                <td><?= $log['jam_keluar'] ? date('H:i', strtotime($log['jam_keluar'])) : '-' ?></td>
-                                                <td class="text-center">
-                                                    <?php if ($log['status'] === 'hadir'): ?>
-                                                        <span class="badge badge-hadir px-2.5 py-1.5 rounded-pill">Hadir</span>
-                                                    <?php elseif ($log['status'] === 'terlambat'): ?>
-                                                        <span class="badge badge-terlambat px-2.5 py-1.5 rounded-pill">Terlambat</span>
-                                                    <?php elseif ($log['status'] === 'alpha'): ?>
-                                                        <span class="badge badge-alpha px-2.5 py-1.5 rounded-pill">Alpha</span>
-                                                    <?php elseif ($log['status'] === 'sakit'): ?>
-                                                        <span class="badge badge-sakit px-2.5 py-1.5 rounded-pill">Sakit</span>
-                                                    <?php elseif ($log['status'] === 'izin'): ?>
-                                                        <span class="badge badge-izin px-2.5 py-1.5 rounded-pill">Izin</span>
-                                                    <?php endif; ?>
-                                                </td>
-                                                <td><?= htmlspecialchars($log['keterangan'] ?? '-') ?></td>
+                                                <th>Tanggal</th>
+                                                <th>Jam Masuk</th>
+                                                <th>Jam Pulang</th>
+                                                <th class="text-center">Status</th>
+                                                <th>Keterangan</th>
                                             </tr>
-                                        <?php endforeach; ?>
-                                    </tbody>
-                                </table>
-                            </div>
+                                        </thead>
+                                        <tbody>
+                                            <?php foreach ($emp['logs'] as $log): ?>
+                                                <tr>
+                                                    <td><?= date('d-m-Y', strtotime($log['tanggal'])) ?></td>
+                                                    <td><?= $log['jam_masuk'] ? date('H:i', strtotime($log['jam_masuk'])) : '-' ?></td>
+                                                    <td><?= $log['jam_keluar'] ? date('H:i', strtotime($log['jam_keluar'])) : '-' ?></td>
+                                                    <td class="text-center">
+                                                        <?php if ($log['status'] === 'hadir'): ?>
+                                                            <span class="badge badge-hadir px-2.5 py-1.5 rounded-pill">Hadir</span>
+                                                        <?php elseif ($log['status'] === 'terlambat'): ?>
+                                                            <span class="badge badge-terlambat px-2.5 py-1.5 rounded-pill">Terlambat</span>
+                                                        <?php elseif ($log['status'] === 'alpha'): ?>
+                                                            <span class="badge badge-alpha px-2.5 py-1.5 rounded-pill">Alpha</span>
+                                                        <?php elseif ($log['status'] === 'sakit'): ?>
+                                                            <span class="badge badge-sakit px-2.5 py-1.5 rounded-pill">Sakit</span>
+                                                        <?php elseif ($log['status'] === 'izin'): ?>
+                                                            <span class="badge badge-izin px-2.5 py-1.5 rounded-pill">Izin</span>
+                                                        <?php endif; ?>
+                                                    </td>
+                                                    <td><?= htmlspecialchars($log['keterangan'] ?? '-') ?></td>
+                                                </tr>
+                                            <?php endforeach; ?>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </template>
                         </td>
                     </tr>
-                <?php endforeach; endif; ?>
+                <?php endforeach; ?>
             </tbody>
         </table>
     </div>
 </div>
+
+<!-- DataTables CSS and JS -->
+<link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/dataTables.bootstrap5.min.css">
+<script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.6/js/dataTables.bootstrap5.min.js"></script>
+<script>
+    $(document).ready(function() {
+        var table = $('#monitoringTable').DataTable({
+            "language": {
+                "url": "//cdn.datatables.net/plug-ins/1.13.6/i18n/id.json"
+            },
+            "pageLength": 10,
+            "ordering": false // Disable ordering to keep the loop logic intact
+        });
+
+        $('#monitoringTable tbody').on('click', '.btn-view-log', function () {
+            var tr = $(this).closest('tr');
+            var row = table.row(tr);
+            var uid = $(this).data('uid');
+
+            if (row.child.isShown()) {
+                // This row is already open - close it
+                row.child.hide();
+                tr.removeClass('shown');
+            } else {
+                // Open this row
+                var detailHtml = $('#template-detail-' + uid).html();
+                row.child(detailHtml).show();
+                tr.addClass('shown');
+            }
+        });
+    });
+</script>
 
 <?php require_once 'footer.php'; ?>
